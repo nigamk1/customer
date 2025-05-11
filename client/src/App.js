@@ -11,6 +11,9 @@ import Dashboard from './pages/Dashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ChatPage from './pages/ChatPage';
 import NotFound from './pages/NotFound';
+import Integrations from './pages/Integrations';
+import IntegrationForm from './pages/IntegrationForm';
+import IntegrationWidgetCode from './pages/IntegrationWidgetCode';
 
 // Components
 import Navbar from './components/Navbar';
@@ -30,16 +33,21 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/chat" element={<ChatPage />} />
-            <Route path="/dashboard" element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            } />
-            <Route path="/admin/*" element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            } />
+            
+            {/* Private Routes */}
+            <Route element={<PrivateRoute />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/integrations" element={<Integrations />} />
+              <Route path="/integrations/new" element={<IntegrationForm />} />
+              <Route path="/integrations/:id" element={<IntegrationForm />} />
+              <Route path="/integrations/:id/widget-code" element={<IntegrationWidgetCode />} />
+            </Route>
+            
+            {/* Admin Routes */}
+            <Route element={<AdminRoute />}>
+              <Route path="/admin/*" element={<AdminDashboard />} />
+            </Route>
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

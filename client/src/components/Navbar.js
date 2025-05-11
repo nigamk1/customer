@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
-import { FaRobot, FaBars, FaTimes, FaUser, FaHome, FaComments, FaTachometerAlt, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaCog } from 'react-icons/fa';
+import { FaRobot, FaBars, FaTimes, FaUser, FaHome, FaComments, FaTachometerAlt, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaCog, FaPuzzlePiece } from 'react-icons/fa';
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useContext(AuthContext);
@@ -51,6 +51,15 @@ const Navbar = () => {
         >
           <FaComments />
           <span>Chat</span>
+        </Link>
+      </li>
+      <li>
+        <Link 
+          to="/integrations" 
+          className={`flex items-center space-x-2 hover:text-primary hover:bg-gray-100 px-3 py-2 rounded-lg transition-all ${isActive('/integrations')}`}
+        >
+          <FaPuzzlePiece />
+          <span>Integrations</span>
         </Link>
       </li>
       {user && user.isAdmin && (

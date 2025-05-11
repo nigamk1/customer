@@ -37,6 +37,12 @@ if (process.env.NODE_ENV === 'development') {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/integration', require('./routes/integration'));
+
+// Serve the widget JavaScript file
+app.get('/widget.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'widget.js'));
+});
 
 // Socket.IO for real-time chat
 io.on('connection', (socket) => {
