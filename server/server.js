@@ -33,16 +33,16 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Serve the widget JavaScript file
+app.get('/widget.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'widget.js'));
+});
+
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/integration', require('./routes/integration'));
-
-// Serve the widget JavaScript file
-app.get('/widget.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'widget.js'));
-});
 
 // Socket.IO for real-time chat
 io.on('connection', (socket) => {
@@ -62,13 +62,21 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
+// Always serve static assets in production environment or on Render
+// Check if running on Render or if NODE_ENV is set to production
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER === 'true';
+
+if (isProduction) {
+  console.log('Running in production mode, serving static files');
+  // Serve static files from the React app
   app.use(express.static(path.join(__dirname, '../client/build')));
   
+  // For any request that doesn't match an API route, send the React app
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, '../client/build', 'index.html'));
   });
+} else {
+  console.log('Running in development mode');
 }
 
 // Error handling middleware
@@ -79,4 +87,4 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT} in ${isProduction ? 'production' : 'development'} mode`));
