@@ -1,6 +1,10 @@
 # dependencies
+/node_modules
 /server/node_modules
 /client/node_modules
+
+# production
+/client/build
 
 # environment variables
 .env
@@ -16,3 +20,5 @@ yarn-error.log*
 
 # misc
 .DS_Store
+.idea/
+.vscode/
