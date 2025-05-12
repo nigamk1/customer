@@ -175,16 +175,23 @@ exports.processExternalChat = async (req, res) => {
     // Prepare system message with website context
     let systemPrompt = `You are a helpful customer service assistant for the website ${integration.domain}. Your purpose is to help customers with questions about products, services, and provide support.`;
     
-    // Add website metadata if available
-    if (metadata && metadata.url) {
-      systemPrompt += ` The user is currently viewing page: ${metadata.url}.`;
+    // Add knowledge base context if enabled
+    let contextData = '';
+    
+    // Add immediate page context if available from the widget
+    if (metadata) {
+      if (metadata.url) {
+        systemPrompt += ` The user is currently viewing page: ${metadata.url}.`;
+      }
+      
       if (metadata.title) {
         systemPrompt += ` Page title: "${metadata.title}".`;
       }
+      
+      if (metadata.pageContent) {
+        contextData += `Current page content:\n${metadata.pageContent}\n\n`;
+      }
     }
-    
-    // Add knowledge base context if enabled
-    let contextData = '';
     
     if (integration.knowledgeBase && integration.knowledgeBase.enabled) {
       // If there's knowledge base URLs, scrape them for context
@@ -246,7 +253,6 @@ exports.processExternalChat = async (req, res) => {
     };
     
     let chat;
-    let messages = [systemMessage];
     
     // If this is a continuation of an existing chat
     if (chatId) {
@@ -259,6 +265,14 @@ exports.processExternalChat = async (req, res) => {
           messages: [systemMessage],
           title: `Website Chat - ${integration.domain}`
         });
+      } else {
+        // Replace the first system message with updated context
+        if (chat.messages.length > 0 && chat.messages[0].role === 'system') {
+          chat.messages[0] = systemMessage;
+        } else {
+          // If no system message exists, add it at the beginning
+          chat.messages.unshift(systemMessage);
+        }
       }
     } else {
       // Create new chat
@@ -282,11 +296,11 @@ exports.processExternalChat = async (req, res) => {
       content: msg.content
     }));
     
-    // Call OpenAI API
+    // Call OpenAI API with a higher token limit for more context
     const response = await openai.chat.completions.create({
       model: 'gpt-4',  // or other suitable model
       messages: apiMessages,
-      max_tokens: 500,
+      max_tokens: 1000, // Increased from 500
       temperature: 0.7,
     });
     

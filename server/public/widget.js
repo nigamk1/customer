@@ -105,6 +105,54 @@
     }
   }
   
+  // Collect page content for context
+  function collectPageContent() {
+    try {
+      // Get main content
+      let mainContent = '';
+      
+      // Look for product information
+      const productElements = document.querySelectorAll('.product, .product-info, .product-details, .product-description, .service-description');
+      if (productElements.length > 0) {
+        for (let el of productElements) {
+          mainContent += el.textContent + ' ';
+        }
+      }
+      
+      // Look for pricing information
+      const priceElements = document.querySelectorAll('.price, .pricing, .product-price');
+      if (priceElements.length > 0) {
+        mainContent += 'Pricing information: ';
+        for (let el of priceElements) {
+          mainContent += el.textContent + ' ';
+        }
+      }
+      
+      // If no specific elements found, try common content areas
+      if (!mainContent) {
+        const contentElements = document.querySelectorAll('main, article, .content, #content, .main-content');
+        if (contentElements.length > 0) {
+          for (let el of contentElements) {
+            mainContent += el.textContent + ' ';
+          }
+        }
+      }
+      
+      // Clean up the content
+      mainContent = mainContent.replace(/\s+/g, ' ').trim();
+      
+      // Limit length
+      if (mainContent.length > 1000) {
+        mainContent = mainContent.substring(0, 1000);
+      }
+      
+      return mainContent;
+    } catch (error) {
+      console.error('Error collecting page content:', error);
+      return '';
+    }
+  }
+  
   // Send a message to the AI
   function sendMessage(message) {
     if (!message.trim()) return;
@@ -127,6 +175,9 @@
     
     renderChatMessages();
     
+    // Get current page content for better context
+    const pageContent = collectPageContent();
+    
     // Call the API
     fetch(`${baseUrl}/api/integration/chat`, {
       method: 'POST',
@@ -141,7 +192,8 @@
         metadata: {
           url: window.location.href,
           title: document.title,
-          referrer: document.referrer
+          referrer: document.referrer,
+          pageContent: pageContent
         }
       })
     })
@@ -239,7 +291,152 @@
   // Format timestamp to readable time
   function formatTime(timestamp) {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+  }
+  
+  // Inject CSS styles
+  function injectStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Chat widget styles */
+      #helpmate-widget-container {
+        position: fixed;
+        z-index: 9999;
+        /* Position will be set based on configuration */
+      }
+      
+      #helpmate-chat-button {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        font-size: 24px;
+        color: white;
+        transition: all 0.3s ease;
+      }
+      
+      #helpmate-chat-window {
+        position: absolute;
+        width: 350px;
+        height: 500px;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      
+      #helpmate-chat-header {
+        padding: 15px;
+        color: white;
+        font-weight: bold;
+      }
+      
+      #helpmate-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 15px;
+        background-color: #f5f8fb;
+      }
+      
+      #helpmate-chat-input-container {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #e0e0e0;
+      }
+      
+      #helpmate-chat-input {
+        flex: 1;
+        border: 1px solid #e0e0e0;
+        border-radius: 20px;
+        padding: 8px 12px;
+        resize: none;
+        outline: none;
+        font-family: inherit;
+        margin-right: 10px;
+      }
+      
+      #helpmate-send-button {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      
+      .helpmate-message {
+        margin-bottom: 15px;
+      }
+      
+      .helpmate-user-message {
+        text-align: right;
+      }
+      
+      .helpmate-message-bubble {
+        display: inline-block;
+        max-width: 80%;
+        padding: 12px;
+        border-radius: 18px;
+      }
+      
+      .helpmate-user-message .helpmate-message-bubble {
+        background-color: ${primaryColor};
+        color: white;
+        border-bottom-right-radius: 4px;
+      }
+      
+      .helpmate-ai-message .helpmate-message-bubble {
+        background-color: white;
+        color: #333;
+        border: 1px solid #e0e0e0;
+        border-bottom-left-radius: 4px;
+      }
+      
+      .helpmate-message-time {
+        font-size: 10px;
+        opacity: 0.7;
+        margin-top: 4px;
+      }
+      
+      .helpmate-loading-dots {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 20px;
+      }
+      
+      .helpmate-loading-dot {
+        width: 8px;
+        height: 8px;
+        background: #999;
+        border-radius: 50%;
+        margin: 0 3px;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+      
+      .helpmate-loading-dot:nth-child(1) { animation-delay: -0.32s; }
+      .helpmate-loading-dot:nth-child(2) { animation-delay: -0.16s; }
+      
+      @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+    `;
+    
+    document.head.appendChild(style);
   }
   
   // Create the widget container
@@ -247,17 +444,24 @@
     const container = document.createElement('div');
     container.id = 'helpmate-widget-container';
     
-    // Apply position
-    if (position === 'bottom-right' || position === 'top-right') {
-      container.style.right = '20px';
-    } else {
-      container.style.left = '20px';
-    }
-    
-    if (position === 'bottom-right' || position === 'bottom-left') {
-      container.style.bottom = '20px';
-    } else {
-      container.style.top = '20px';
+    // Position the widget based on configuration
+    switch (position) {
+      case 'bottom-right':
+        container.style.right = '20px';
+        container.style.bottom = '20px';
+        break;
+      case 'bottom-left':
+        container.style.left = '20px';
+        container.style.bottom = '20px';
+        break;
+      case 'top-right':
+        container.style.right = '20px';
+        container.style.top = '20px';
+        break;
+      case 'top-left':
+        container.style.left = '20px';
+        container.style.top = '20px';
+        break;
     }
     
     return container;
@@ -267,8 +471,9 @@
   function createChatButton() {
     const button = document.createElement('div');
     button.id = 'helpmate-chat-button';
-    button.innerHTML = '?';
     button.style.backgroundColor = primaryColor;
+    button.innerHTML = '?';
+    
     return button;
   }
   
@@ -319,202 +524,12 @@
         // Auto resize the input field
         inputField.addEventListener('input', () => {
           inputField.style.height = 'auto';
-          inputField.style.height = (inputField.scrollHeight) + 'px';
-          if (inputField.scrollHeight > 120) {
-            inputField.style.overflowY = 'auto';
-          } else {
-            inputField.style.overflowY = 'hidden';
-          }
+          inputField.style.height = (inputField.scrollHeight < 100) ? 
+            inputField.scrollHeight + 'px' : '100px';
         });
       }
     }, 100);
     
     return window;
-  }
-  
-  // Inject CSS styles
-  function injectStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
-      #helpmate-widget-container {
-        position: fixed;
-        z-index: 9999;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      }
-      
-      #helpmate-chat-button {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background-color: ${primaryColor};
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        cursor: pointer;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        transition: all 0.3s ease;
-      }
-      
-      #helpmate-chat-button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
-      }
-      
-      #helpmate-chat-window {
-        position: absolute;
-        bottom: 80px;
-        right: 0;
-        width: 350px;
-        height: 500px;
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        display: none;
-        flex-direction: column;
-        opacity: 0;
-        transform: translateY(20px);
-        transition: opacity 0.3s ease, transform 0.3s ease;
-        overflow: hidden;
-      }
-      
-      #helpmate-chat-header {
-        padding: 15px;
-        background-color: ${primaryColor};
-        color: white;
-        font-weight: bold;
-        border-top-left-radius: 10px;
-        border-top-right-radius: 10px;
-      }
-      
-      #helpmate-chat-messages {
-        flex: 1;
-        padding: 15px;
-        overflow-y: auto;
-      }
-      
-      #helpmate-chat-input-container {
-        display: flex;
-        border-top: 1px solid #e0e0e0;
-        padding: 10px;
-      }
-      
-      #helpmate-chat-input {
-        flex: 1;
-        resize: none;
-        padding: 10px;
-        border: 1px solid #e0e0e0;
-        border-radius: 20px;
-        font-size: 14px;
-        max-height: 120px;
-        overflow-y: hidden;
-      }
-      
-      #helpmate-send-button {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background-color: ${primaryColor};
-        color: white;
-        border: none;
-        margin-left: 10px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      
-      .helpmate-message {
-        margin-bottom: 15px;
-        display: flex;
-      }
-      
-      .helpmate-user-message {
-        justify-content: flex-end;
-      }
-      
-      .helpmate-ai-message {
-        justify-content: flex-start;
-      }
-      
-      .helpmate-message-bubble {
-        max-width: 80%;
-        padding: 10px 15px;
-        border-radius: 18px;
-        position: relative;
-      }
-      
-      .helpmate-user-message .helpmate-message-bubble {
-        background-color: ${primaryColor};
-        color: white;
-        border-bottom-right-radius: 5px;
-      }
-      
-      .helpmate-ai-message .helpmate-message-bubble {
-        background-color: #f1f1f1;
-        color: #333;
-        border-bottom-left-radius: 5px;
-      }
-      
-      .helpmate-message-time {
-        font-size: 10px;
-        margin-top: 5px;
-        opacity: 0.7;
-        text-align: right;
-      }
-      
-      .helpmate-loading-dots {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      
-      .helpmate-loading-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background-color: #888;
-        margin: 0 2px;
-        animation: helpmate-dot-pulse 1.5s infinite ease-in-out;
-      }
-      
-      .helpmate-loading-dot:nth-child(2) {
-        animation-delay: 0.2s;
-      }
-      
-      .helpmate-loading-dot:nth-child(3) {
-        animation-delay: 0.4s;
-      }
-      
-      @keyframes helpmate-dot-pulse {
-        0%, 100% {
-          opacity: 0.4;
-          transform: scale(0.8);
-        }
-        50% {
-          opacity: 1;
-          transform: scale(1.2);
-        }
-      }
-      
-      @media (max-width: 480px) {
-        #helpmate-chat-window {
-          width: 90vw;
-          height: 70vh;
-          bottom: 70px;
-          right: -45vw;
-          left: 5vw;
-        }
-        
-        #helpmate-chat-button {
-          width: 50px;
-          height: 50px;
-          font-size: 20px;
-        }
-      }
-    `;
-    
-    document.head.appendChild(style);
   }
 })();
