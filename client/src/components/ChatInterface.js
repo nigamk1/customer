@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FaPaperPlane, FaRobot, FaUser, FaMicrophone } from 'react-icons/fa';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import DOMPurify from 'dompurify';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 const ChatInterface = () => {
   const [message, setMessage] = useState('');
@@ -85,6 +91,45 @@ const ChatInterface = () => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Function to render formatted message content
+  const renderMessageContent = (content) => {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          root: ({ node, ...props }) => <div className="message-content" {...props} />,
+          p: ({ node, ...props }) => <p className="mb-3 leading-relaxed" {...props} />,
+          h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
+          h2: ({ node, ...props }) => <h2 className="text-lg font-bold mb-2" {...props} />,
+          h3: ({ node, ...props }) => <h3 className="text-md font-bold mb-2" {...props} />,
+          ul: ({ node, ...props }) => <ul className="list-disc ml-5 mb-3 space-y-1" {...props} />,
+          ol: ({ node, ...props }) => <ol className="list-decimal ml-5 mb-3 space-y-1" {...props} />,
+          li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+          a: ({ node, ...props }) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+          code: ({ node, inline, ...props }) => {
+            return inline ? (
+              <code className="bg-gray-100 px-1 py-0.5 rounded text-red-600 font-mono text-sm" {...props} />
+            ) : (
+              <pre className="bg-gray-800 text-gray-100 p-3 rounded-md mb-3 overflow-x-auto font-mono text-sm">
+                <code {...props} />
+              </pre>
+            );
+          },
+          blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic mb-3 text-gray-700" {...props} />,
+          table: ({ node, ...props }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border border-gray-300" {...props} /></div>,
+          thead: ({ node, ...props }) => <thead className="bg-gray-100" {...props} />,
+          tbody: ({ node, ...props }) => <tbody className="divide-y divide-gray-300" {...props} />,
+          tr: ({ node, ...props }) => <tr {...props} />,
+          td: ({ node, ...props }) => <td className="border border-gray-300 px-2 py-1 text-sm" {...props} />,
+          th: ({ node, ...props }) => <th className="border border-gray-300 px-2 py-1 text-sm font-bold" {...props} />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full rounded-lg shadow-lg border bg-gradient-to-b from-white to-gray-50">
       <div className="bg-gradient-to-r from-primary to-blue-600 text-white p-4 rounded-t-lg">
@@ -104,7 +149,7 @@ const ChatInterface = () => {
           >
             <div className="flex items-start max-w-[80%]">
               {chat.role === 'assistant' && (
-                <div className="bg-gradient-to-br from-primary to-blue-600 rounded-full p-2 text-white mr-3 shadow-md">
+                <div className="bg-gradient-to-br from-primary to-blue-600 rounded-full p-2 text-white mr-3 shadow-md flex-shrink-0">
                   <FaRobot />
                 </div>
               )}
@@ -114,14 +159,20 @@ const ChatInterface = () => {
                   ? 'bg-gradient-to-r from-secondary to-indigo-500 text-white' 
                   : 'bg-gray-100 border border-gray-200 text-gray-800'
               }`}>
-                <p className="mb-2 leading-relaxed">{chat.content}</p>
-                <p className={`text-xs ${chat.role === 'user' ? 'text-gray-200' : 'text-gray-500'} text-right`}>
+                {chat.role === 'user' ? (
+                  <p className="mb-2 leading-relaxed whitespace-pre-line">{chat.content}</p>
+                ) : (
+                  <div className="markdown-content">
+                    {renderMessageContent(chat.content)}
+                  </div>
+                )}
+                <p className={`text-xs ${chat.role === 'user' ? 'text-gray-200' : 'text-gray-500'} text-right mt-2`}>
                   {formatTime(chat.timestamp)}
                 </p>
               </div>
               
               {chat.role === 'user' && (
-                <div className="bg-gradient-to-br from-secondary to-indigo-500 rounded-full p-2 text-white ml-3 shadow-md">
+                <div className="bg-gradient-to-br from-secondary to-indigo-500 rounded-full p-2 text-white ml-3 shadow-md flex-shrink-0">
                   <FaUser />
                 </div>
               )}

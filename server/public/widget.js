@@ -91,7 +91,8 @@
         chatWindow.style.opacity = '1';
         chatWindow.style.transform = 'translateY(0)';
       }, 50);
-      chatButton.innerHTML = '&times;';
+      chatButton.querySelector('.helpmate-chat-icon').style.display = 'none';
+      chatButton.querySelector('.helpmate-close-icon').style.display = 'block';
       chatButton.style.backgroundColor = '#f44336';
       renderChatMessages();
     } else {
@@ -100,7 +101,8 @@
       setTimeout(() => {
         chatWindow.style.display = 'none';
       }, 300);
-      chatButton.innerHTML = '?';
+      chatButton.querySelector('.helpmate-chat-icon').style.display = 'block';
+      chatButton.querySelector('.helpmate-close-icon').style.display = 'none';
       chatButton.style.backgroundColor = primaryColor;
     }
   }
@@ -472,7 +474,16 @@
     const button = document.createElement('div');
     button.id = 'helpmate-chat-button';
     button.style.backgroundColor = primaryColor;
-    button.innerHTML = '?';
+    
+    // Using message/chat icon instead of question mark
+    button.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px" class="helpmate-chat-icon">
+        <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+      </svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="24px" height="24px" class="helpmate-close-icon" style="display: none;">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+      </svg>
+    `;
     
     return button;
   }
