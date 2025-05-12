@@ -383,7 +383,7 @@ exports.getWidgetCode = async (req, res) => {
     var js, fjs = d.getElementsByTagName(s)[0];
     if (d.getElementById(o.scriptId)) return;
     js = d.createElement(s); js.id = o.scriptId;
-    js.src = "${process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:5000'}/widget.js";
+    js.src = "${process.env.NODE_ENV === 'production' ? 'https://customer-ai-support.onrender.com/widget.js' : 'http://localhost:5000'}/widget.js";
     js.async = 1;
     fjs.parentNode.insertBefore(js, fjs);
   }(window, document, 'script', {

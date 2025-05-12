@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import AuthContext from '../context/AuthContext';
-import { FaRobot, FaBars, FaTimes, FaUser, FaHome, FaComments, FaTachometerAlt, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaCog, FaPuzzlePiece } from 'react-icons/fa';
+import { FaRobot, FaBars, FaTimes, FaUser, FaHome, FaComments, FaTachometerAlt, FaSignInAlt, FaUserPlus, FaSignOutAlt, FaCog, FaPuzzlePiece, FaTag, FaCreditCard } from 'react-icons/fa';
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useContext(AuthContext);
@@ -55,6 +55,15 @@ const Navbar = () => {
       </li>
       <li>
         <Link 
+          to="/subscription/manage" 
+          className={`flex items-center space-x-2 hover:text-primary hover:bg-gray-100 px-3 py-2 rounded-lg transition-all ${isActive('/subscription/manage')}`}
+        >
+          <FaCreditCard />
+          <span>Subscription</span>
+        </Link>
+      </li>
+      <li>
+        <Link 
           to="/integrations" 
           className={`flex items-center space-x-2 hover:text-primary hover:bg-gray-100 px-3 py-2 rounded-lg transition-all ${isActive('/integrations')}`}
         >
@@ -87,6 +96,15 @@ const Navbar = () => {
 
   const guestLinks = (
     <>
+      <li>
+        <Link 
+          to="/pricing" 
+          className={`flex items-center space-x-2 hover:text-primary hover:bg-gray-100 px-3 py-2 rounded-lg transition-all ${isActive('/pricing')}`}
+        >
+          <FaTag />
+          <span>Pricing</span>
+        </Link>
+      </li>
       <li>
         <Link 
           to="/login" 

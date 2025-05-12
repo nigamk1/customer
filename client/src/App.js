@@ -14,6 +14,12 @@ import NotFound from './pages/NotFound';
 import Integrations from './pages/Integrations';
 import IntegrationForm from './pages/IntegrationForm';
 import IntegrationWidgetCode from './pages/IntegrationWidgetCode';
+import Pricing from './pages/Pricing';
+import Checkout from './pages/Checkout';
+import SubscriptionSuccess from './pages/SubscriptionSuccess';
+import SubscriptionManagement from './pages/SubscriptionManagement';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 // Components
 import Navbar from './components/Navbar';
@@ -33,10 +39,16 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
             
             {/* Private Routes */}
             <Route element={<PrivateRoute />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+              <Route path="/subscription/manage" element={<SubscriptionManagement />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/integrations/new" element={<IntegrationForm />} />
               <Route path="/integrations/:id" element={<IntegrationForm />} />

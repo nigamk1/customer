@@ -43,6 +43,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/integration', require('./routes/integration'));
+app.use('/api/subscription', require('./routes/subscription'));
 
 // Socket.IO for real-time chat
 io.on('connection', (socket) => {

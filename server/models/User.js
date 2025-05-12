@@ -23,9 +23,29 @@ const UserSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
+  phone: {
+    type: String,
+    match: [
+      /^[0-9]{10}$/,
+      'Please add a valid 10-digit phone number'
+    ]
+  },
+  businessName: {
+    type: String,
+    trim: true
+  },
   isAdmin: {
     type: Boolean,
     default: false
+  },
+  subscriptionActive: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionPlan: {
+    type: String,
+    enum: ['basic', 'premium', null],
+    default: null
   },
   createdAt: {
     type: Date,
@@ -46,7 +66,14 @@ UserSchema.pre('save', async function(next) {
 // Sign JWT and return
 UserSchema.methods.getSignedJwtToken = function() {
   return jwt.sign(
-    { id: this._id },
+    { 
+      id: this._id,
+      name: this.name,
+      email: this.email,
+      isAdmin: this.isAdmin,
+      subscriptionActive: this.subscriptionActive,
+      subscriptionPlan: this.subscriptionPlan
+    },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
