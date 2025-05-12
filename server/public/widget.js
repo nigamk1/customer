@@ -29,7 +29,7 @@
     }
     
     // Fallback to localhost if we can't determine
-    return 'http://localhost:5000';
+    return 'https://customer-ai-support.onrender.com/widget.js';
   };
   
   // Base URL for API requests
