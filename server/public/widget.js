@@ -29,7 +29,7 @@
     }
     
     // Fallback to localhost if we can't determine
-    return 'https://customer-ai-support.onrender.com/api/chat';
+    return 'https://customer-ai-support.onrender.com';
     
   };
   
