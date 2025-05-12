@@ -173,7 +173,15 @@ exports.processExternalChat = async (req, res) => {
     }
 
     // Prepare system message with website context
-    let systemPrompt = `You are a helpful customer service assistant for the website ${integration.domain}.`;
+    let systemPrompt = `You are a helpful customer service assistant for the website ${integration.domain}. Your purpose is to help customers with questions about products, services, and provide support.`;
+    
+    // Add website metadata if available
+    if (metadata && metadata.url) {
+      systemPrompt += ` The user is currently viewing page: ${metadata.url}.`;
+      if (metadata.title) {
+        systemPrompt += ` Page title: "${metadata.title}".`;
+      }
+    }
     
     // Add knowledge base context if enabled
     let contextData = '';
@@ -183,11 +191,34 @@ exports.processExternalChat = async (req, res) => {
       if (integration.knowledgeBase.urls && integration.knowledgeBase.urls.length > 0) {
         for (const url of integration.knowledgeBase.urls) {
           try {
-            const scrapeResponse = await axios.get(url);
+            const scrapeResponse = await axios.get(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+              },
+              timeout: 10000
+            });
+            
             const $ = cheerio.load(scrapeResponse.data);
-            // Extract text content, strip HTML, and clean up whitespace
-            const pageText = $('body').text().replace(/\s+/g, ' ').trim();
-            contextData += `Content from ${url}: ${pageText.substring(0, 1000)} [...]\n\n`;
+            
+            // Remove script and style elements
+            $('script, style, nav, footer, header, .menu, .sidebar').remove();
+            
+            // Extract text from main content areas with higher priority
+            let mainContent = '';
+            $('main, article, .content, .product-description, .product-details, #content, .main-content').each((i, el) => {
+              mainContent += $(el).text() + ' ';
+            });
+            
+            // If no specific content areas found, fall back to body
+            let pageText = mainContent || $('body').text();
+            
+            // Clean up the text
+            pageText = pageText.replace(/\s+/g, ' ').trim();
+            
+            // Get page title
+            const pageTitle = $('title').text().trim();
+            
+            contextData += `Information from ${url} - ${pageTitle || 'Page'}:\n${pageText.substring(0, 2000)}\n\n`;
           } catch (error) {
             console.error(`Error scraping ${url}:`, error.message);
           }
@@ -197,16 +228,16 @@ exports.processExternalChat = async (req, res) => {
       // Add stored document content if available
       if (integration.knowledgeBase.documents && integration.knowledgeBase.documents.length > 0) {
         integration.knowledgeBase.documents.forEach(doc => {
-          contextData += `${doc.name}: ${doc.content.substring(0, 1000)} [...]\n\n`;
+          contextData += `${doc.name}: ${doc.content}\n\n`;
         });
       }
     }
     
     if (contextData) {
-      systemPrompt += ` Use the following information to answer questions accurately: ${contextData}`;
+      systemPrompt += ` Use the following information to answer questions accurately about products, services, pricing, and other details: ${contextData}`;
     }
 
-    systemPrompt += ` Always provide accurate and helpful responses to customer inquiries. If you don't know the answer, suggest the customer reaches out to a human agent.`;
+    systemPrompt += ` Always provide accurate and helpful responses to customer inquiries about the website's products and services. If you don't have enough information about a specific product or service, acknowledge this and suggest the customer reaches out to a human agent.`;
 
     // System message for AI to understand its role
     const systemMessage = {
