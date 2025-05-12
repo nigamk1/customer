@@ -29,7 +29,8 @@
     }
     
     // Fallback to localhost if we can't determine
-    return 'https://customer-ai-support.onrender.com/widget.js';
+    return 'https://customer-ai-support.onrender.com/api/chat';
+    
   };
   
   // Base URL for API requests
