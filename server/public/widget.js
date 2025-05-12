@@ -12,8 +12,28 @@
   const chatTitle = config.chatTitle || 'Customer Support';
   const welcomeMessage = config.welcomeMessage || 'Hi there! How can I help you today?';
   
+  // Dynamically determine base URL
+  // This ensures we use the same domain in production or development
+  const getBaseUrl = () => {
+    // If explicitly provided in config, use that
+    if (config.baseUrl) return config.baseUrl;
+    
+    // Get the current script URL
+    const scripts = document.getElementsByTagName('script');
+    const currentScript = scripts[scripts.length - 1];
+    
+    if (currentScript && currentScript.src) {
+      // Extract domain from script source
+      const scriptUrl = new URL(currentScript.src);
+      return scriptUrl.origin; // Returns just the origin part (protocol + domain + port)
+    }
+    
+    // Fallback to localhost if we can't determine
+    return 'http://localhost:5000';
+  };
+  
   // Base URL for API requests
-  const baseUrl = config.baseUrl || 'http://localhost:5000';
+  const baseUrl = getBaseUrl();
   
   // State
   let isOpen = false;

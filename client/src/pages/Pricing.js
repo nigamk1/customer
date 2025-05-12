@@ -65,9 +65,9 @@ const Pricing = () => {
 
     try {
       setLoading(true);
-      const res = await axios.post('/api/subscription/create-order', {
+      const res = await axios.post('/api/subscription/order', {
         plan,
-        cycle
+        paymentCycle: cycle
       });
 
       // Save order info for checkout page
@@ -96,7 +96,7 @@ const Pricing = () => {
 
     try {
       setLoading(true);
-      const res = await axios.post('/api/subscription/start-trial');
+      const res = await axios.post('/api/subscription/trial');
       toast.success(res.data.message);
       navigate('/dashboard');
     } catch (error) {
