@@ -305,7 +305,7 @@
       /* Chat widget styles */
       #helpmate-widget-container {
         position: fixed;
-        z-index: 9999;
+        z-index: 999999;
         /* Position will be set based on configuration */
       }
       
@@ -336,6 +336,8 @@
         transition: all 0.3s ease;
         opacity: 0;
         transform: translateY(20px);
+        bottom: 70px;
+        right: 0;
       }
       
       #helpmate-chat-header {
@@ -492,6 +494,18 @@
   function createChatWindow() {
     const window = document.createElement('div');
     window.id = 'helpmate-chat-window';
+    
+    // Adjust position based on container position
+    if (position.includes('left')) {
+      window.style.left = '0';
+    } else {
+      window.style.right = '0';
+    }
+    
+    if (position.includes('top')) {
+      window.style.top = '70px';
+      window.style.bottom = 'auto';
+    }
     
     window.innerHTML = `
       <div id="helpmate-chat-header" style="background-color: ${primaryColor}">
