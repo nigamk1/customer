@@ -110,48 +110,129 @@
   // Collect page content for context
   function collectPageContent() {
     try {
-      // Get main content
-      let mainContent = '';
+      // Create structured page data object
+      let pageData = {
+        type: '',
+        title: document.title,
+        url: window.location.href,
+        mainContent: '',
+        productInfo: '',
+        pricing: '',
+        categories: [],
+        pageMetadata: {}
+      };
       
-      // Look for product information
-      const productElements = document.querySelectorAll('.product, .product-info, .product-details, .product-description, .service-description');
+      // Detect page type based on URL and content
+      if (window.location.pathname.includes('/product') || document.querySelector('.product, .product-detail, #product')) {
+        pageData.type = 'product';
+      } else if (window.location.pathname.includes('/category') || document.querySelector('.category, .products-list')) {
+        pageData.type = 'category';
+      } else if (window.location.pathname.includes('/cart') || document.querySelector('.cart, .checkout')) {
+        pageData.type = 'cart';
+      } else if (window.location.pathname.includes('/faq') || document.querySelector('.faq, .faqs')) {
+        pageData.type = 'faq';
+      } else if (window.location.pathname.includes('/contact') || document.querySelector('.contact, .contact-us')) {
+        pageData.type = 'contact';
+      } else if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+        pageData.type = 'homepage';
+      }
+
+      // Get product information with higher priority
+      const productElements = document.querySelectorAll('.product, .product-info, .product-details, .product-description, .service-description, [itemtype*="Product"]');
       if (productElements.length > 0) {
+        let productData = '';
         for (let el of productElements) {
-          mainContent += el.textContent + ' ';
+          // Extract specific product attributes where available
+          const name = el.querySelector('[itemprop="name"], .product-name, .product-title, h1')?.textContent;
+          const description = el.querySelector('[itemprop="description"], .product-description, .description')?.textContent;
+          const price = el.querySelector('[itemprop="price"], .price, .product-price')?.textContent;
+          const sku = el.querySelector('[itemprop="sku"], .sku')?.textContent;
+          const brand = el.querySelector('[itemprop="brand"], .brand')?.textContent;
+          
+          if (name) productData += `Product: ${name.trim()}\n`;
+          if (description) productData += `Description: ${description.trim()}\n`;
+          if (price) productData += `Price: ${price.trim()}\n`;
+          if (sku) productData += `SKU: ${sku.trim()}\n`;
+          if (brand) productData += `Brand: ${brand.trim()}\n`;
+          
+          // If no structured data, get the full text
+          if (!productData) {
+            productData += el.textContent.replace(/\s+/g, ' ').trim() + '\n';
+          }
         }
+        pageData.productInfo = productData;
       }
       
       // Look for pricing information
-      const priceElements = document.querySelectorAll('.price, .pricing, .product-price');
+      const priceElements = document.querySelectorAll('.price, .pricing, .product-price, .price-list, [itemprop="price"]');
       if (priceElements.length > 0) {
-        mainContent += 'Pricing information: ';
+        let priceData = 'Pricing information: ';
         for (let el of priceElements) {
-          mainContent += el.textContent + ' ';
+          priceData += el.textContent.trim() + ' ';
         }
+        pageData.pricing = priceData.trim();
       }
       
-      // If no specific elements found, try common content areas
-      if (!mainContent) {
-        const contentElements = document.querySelectorAll('main, article, .content, #content, .main-content');
-        if (contentElements.length > 0) {
-          for (let el of contentElements) {
-            mainContent += el.textContent + ' ';
+      // Look for navigation/categories to understand site structure
+      const navElements = document.querySelectorAll('nav, .navigation, .main-menu, .categories');
+      if (navElements.length > 0) {
+        for (let nav of navElements) {
+          const links = nav.querySelectorAll('a');
+          for (let link of links) {
+            if (link.textContent.trim()) {
+              pageData.categories.push(link.textContent.trim());
+            }
           }
         }
       }
       
-      // Clean up the content
-      mainContent = mainContent.replace(/\s+/g, ' ').trim();
-      
-      // Limit length
-      if (mainContent.length > 1000) {
-        mainContent = mainContent.substring(0, 1000);
+      // Extract meta tags for additional context
+      const metaTags = document.querySelectorAll('meta[name], meta[property]');
+      if (metaTags.length > 0) {
+        for (let tag of metaTags) {
+          const name = tag.getAttribute('name') || tag.getAttribute('property');
+          const content = tag.getAttribute('content');
+          if (name && content && (name.includes('description') || name.includes('keywords') || name.includes('title'))) {
+            pageData.pageMetadata[name] = content;
+          }
+        }
       }
       
-      return mainContent;
+      // If no specific elements found, try common content areas for main content
+      if (!pageData.mainContent) {
+        const contentElements = document.querySelectorAll('main, article, .content, #content, .main-content');
+        if (contentElements.length > 0) {
+          for (let el of contentElements) {
+            pageData.mainContent += el.textContent.replace(/\s+/g, ' ').trim() + ' ';
+          }
+        }
+      }
+      
+      // If still no content, get body text but limit it
+      if (!pageData.mainContent && !pageData.productInfo) {
+        pageData.mainContent = document.body.textContent.replace(/\s+/g, ' ').trim().substring(0, 2000);
+      }
+      
+      // Convert to string representation for API transport
+      let contextString = `Page Type: ${pageData.type || 'Unknown'}\nURL: ${pageData.url}\nTitle: ${pageData.title}\n`;
+      
+      if (pageData.productInfo) contextString += `\n${pageData.productInfo}`;
+      if (pageData.pricing) contextString += `\n${pageData.pricing}`;
+      if (pageData.categories.length > 0) contextString += `\nCategories: ${pageData.categories.join(', ')}\n`;
+      if (pageData.mainContent) contextString += `\nMain Content: ${pageData.mainContent.substring(0, 1500)}\n`;
+      
+      // Add metadata if available
+      if (Object.keys(pageData.pageMetadata).length > 0) {
+        contextString += '\nPage Metadata:\n';
+        for (const [key, value] of Object.entries(pageData.pageMetadata)) {
+          contextString += `${key}: ${value}\n`;
+        }
+      }
+      
+      return contextString;
     } catch (error) {
       console.error('Error collecting page content:', error);
-      return '';
+      return 'Unable to collect page content due to an error.';
     }
   }
   

@@ -3,6 +3,9 @@ const Chat = require('../models/Chat');
 const { OpenAI } = require('openai');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const path = require('path');
+const fs = require('fs');
+const mongoose = require('mongoose');
 
 // Initialize OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -172,79 +175,153 @@ exports.processExternalChat = async (req, res) => {
       return res.status(401).json({ message: 'Invalid or inactive API key' });
     }
 
-    // Prepare system message with website context
-    let systemPrompt = `You are a helpful customer service assistant for the website ${integration.domain}. Your purpose is to help customers with questions about products, services, and provide support.`;
+    // Prepare context with better structured prompting
+    const domainName = integration.domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
     
-    // Add knowledge base context if enabled
-    let contextData = '';
+    // Create base system prompt
+    let systemPrompt = `You are a helpful customer service AI assistant for the website ${domainName}. You help customers with questions about products, services, pricing, and support.
+
+IMPORTANT INSTRUCTIONS:
+1. Your task is to provide accurate, specific answers based on the context provided about ${domainName}.
+2. If the user's question relates to specific content on the current page, use that information first.
+3. If the user asks something not covered in the context, acknowledge the limitation and suggest that they reach out for more information.
+4. Always be polite, professional, and helpful in your tone.
+5. Never make up information. Stick to what's provided in the context.
+6. If the user asks about placing an order or specific account questions, explain that you can provide information but they'll need to complete the transaction through the website's regular checkout/account process.
+`;
     
-    // Add immediate page context if available from the widget
-    if (metadata) {
-      if (metadata.url) {
-        systemPrompt += ` The user is currently viewing page: ${metadata.url}.`;
-      }
-      
-      if (metadata.title) {
-        systemPrompt += ` Page title: "${metadata.title}".`;
-      }
-      
-      if (metadata.pageContent) {
-        contextData += `Current page content:\n${metadata.pageContent}\n\n`;
-      }
+    // Add structured context data sections
+    let contextSections = [];
+    
+    // Add current page context with high priority
+    if (metadata && metadata.pageContent) {
+      contextSections.push({
+        title: "CURRENT PAGE INFORMATION",
+        content: metadata.pageContent.trim().substring(0, 3000),
+        priority: 1
+      });
     }
     
+    // Add knowledge base documents
     if (integration.knowledgeBase && integration.knowledgeBase.enabled) {
-      // If there's knowledge base URLs, scrape them for context
-      if (integration.knowledgeBase.urls && integration.knowledgeBase.urls.length > 0) {
-        for (const url of integration.knowledgeBase.urls) {
-          try {
-            const scrapeResponse = await axios.get(url, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-              },
-              timeout: 10000
-            });
-            
-            const $ = cheerio.load(scrapeResponse.data);
-            
-            // Remove script and style elements
-            $('script, style, nav, footer, header, .menu, .sidebar').remove();
-            
-            // Extract text from main content areas with higher priority
-            let mainContent = '';
-            $('main, article, .content, .product-description, .product-details, #content, .main-content').each((i, el) => {
-              mainContent += $(el).text() + ' ';
-            });
-            
-            // If no specific content areas found, fall back to body
-            let pageText = mainContent || $('body').text();
-            
-            // Clean up the text
-            pageText = pageText.replace(/\s+/g, ' ').trim();
-            
-            // Get page title
-            const pageTitle = $('title').text().trim();
-            
-            contextData += `Information from ${url} - ${pageTitle || 'Page'}:\n${pageText.substring(0, 2000)}\n\n`;
-          } catch (error) {
-            console.error(`Error scraping ${url}:`, error.message);
-          }
-        }
-      }
-
-      // Add stored document content if available
+      // Add documents from knowledge base
       if (integration.knowledgeBase.documents && integration.knowledgeBase.documents.length > 0) {
-        integration.knowledgeBase.documents.forEach(doc => {
-          contextData += `${doc.name}: ${doc.content}\n\n`;
+        const docsContent = integration.knowledgeBase.documents.map(doc => 
+          `${doc.name}: ${doc.content.substring(0, 1000)}`
+        ).join('\n\n');
+        
+        contextSections.push({
+          title: "KNOWLEDGE BASE DOCUMENTS",
+          content: docsContent,
+          priority: 2
         });
       }
+      
+      // Add scraped information from URLs in knowledge base
+      if (integration.knowledgeBase.urls && integration.knowledgeBase.urls.length > 0) {
+        try {
+          // Use Promise.all to scrape multiple URLs in parallel
+          const scrapedContents = await Promise.all(
+            integration.knowledgeBase.urls.map(async url => {
+              try {
+                // First check if this URL would be particularly relevant to the user's query
+                // This helps prioritize the most relevant content
+                const urlLower = url.toLowerCase();
+                const messageLower = message.toLowerCase();
+                const urlRelevanceScore = calculateRelevanceScore(urlLower, messageLower);
+                
+                const response = await axios.get(url, {
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                  },
+                  timeout: 10000
+                });
+                
+                const $ = cheerio.load(response.data);
+                
+                // Remove script, style, and other non-content elements
+                $('script, style, nav, footer, header, .menu, .sidebar, [role="navigation"], .navigation').remove();
+                
+                // Extract text from main content areas with higher priority
+                let mainContent = '';
+                // Target common content containers
+                $('main, article, .content, .product-description, .product-details, #content, .main-content, [role="main"]').each((i, el) => {
+                  mainContent += $(el).text() + ' ';
+                });
+                
+                // If no specific content areas found, fall back to body
+                let pageText = mainContent || $('body').text();
+                
+                // Clean up the text
+                pageText = pageText.replace(/\s+/g, ' ').trim();
+                
+                // Get page title
+                const pageTitle = $('title').text().trim();
+                
+                // Get meta description
+                const metaDescription = $('meta[name="description"]').attr('content') || '';
+                
+                return {
+                  url,
+                  title: pageTitle,
+                  description: metaDescription,
+                  content: pageText.substring(0, 3000),
+                  relevanceScore: urlRelevanceScore
+                };
+              } catch (error) {
+                console.error(`Error scraping ${url}:`, error.message);
+                return {
+                  url,
+                  title: "Error retrieving content",
+                  description: "",
+                  content: "",
+                  relevanceScore: 0
+                };
+              }
+            })
+          );
+          
+          // Sort scraped content by relevance
+          const sortedContent = scrapedContents
+            .filter(item => item.content) // Filter out empty contents
+            .sort((a, b) => b.relevanceScore - a.relevanceScore); // Sort by relevance score
+          
+          // Only use the top most relevant pages to avoid context bloat
+          const topRelevantPages = sortedContent.slice(0, 3);
+          
+          if (topRelevantPages.length > 0) {
+            const urlsContent = topRelevantPages.map(page => 
+              `PAGE: ${page.title || page.url}\nDESCRIPTION: ${page.description}\nCONTENT: ${page.content.substring(0, 1500)}`
+            ).join('\n\n---\n\n');
+            
+            contextSections.push({
+              title: "WEBSITE PAGES",
+              content: urlsContent,
+              priority: 3
+            });
+          }
+        } catch (error) {
+          console.error('Error processing knowledge base URLs:', error);
+        }
+      }
     }
     
-    if (contextData) {
-      systemPrompt += ` Use the following information to answer questions accurately about products, services, pricing, and other details: ${contextData}`;
+    // Sort context sections by priority
+    contextSections.sort((a, b) => a.priority - b.priority);
+    
+    // Build final context
+    let contextData = '';
+    for (const section of contextSections) {
+      contextData += `\n\n### ${section.title} ###\n${section.content}\n`;
     }
-
-    systemPrompt += ` Always provide accurate and helpful responses to customer inquiries about the website's products and services. If you don't have enough information about a specific product or service, acknowledge this and suggest the customer reaches out to a human agent.`;
+    
+    // Add the context to the system prompt
+    if (contextData) {
+      systemPrompt += `\n\nREFERENCE INFORMATION: Use the following information to accurately answer questions about ${domainName}:${contextData}`;
+    }
+    
+    // Add final instruction to guide responses when information is missing
+    systemPrompt += `\n\nIf there's anything you're not sure about that isn't covered in the reference information above, be transparent about it. Say something like: "Based on the information I have, I can't provide a complete answer about [topic]. For more details, you may want to [appropriate next step like: check the specific product page, contact customer support, etc.]."`;
 
     // System message for AI to understand its role
     const systemMessage = {
@@ -296,11 +373,15 @@ exports.processExternalChat = async (req, res) => {
       content: msg.content
     }));
     
-    // Call OpenAI API with a higher token limit for more context
+    // Determine appropriate token limits based on context length
+    const contextLength = systemPrompt.length;
+    const maxTokens = contextLength > 8000 ? 1000 : (contextLength > 4000 ? 1500 : 2000);
+    
+    // Call OpenAI API with dynamic token limits based on context size
     const response = await openai.chat.completions.create({
-      model: 'gpt-4',  // or other suitable model
+      model: 'gpt-4',  // Using GPT-4 for better context understanding
       messages: apiMessages,
-      max_tokens: 1000, // Increased from 500
+      max_tokens: maxTokens,
       temperature: 0.7,
     });
     
@@ -328,6 +409,46 @@ exports.processExternalChat = async (req, res) => {
     res.status(500).json({ message: 'Error processing chat request' });
   }
 };
+
+// Helper function to calculate relevance score between a URL and a user message
+function calculateRelevanceScore(url, message) {
+  let score = 0;
+  
+  // Split the message into keywords
+  const keywords = message.split(/\s+/).filter(word => word.length > 3);
+  
+  // Check if any keywords appear in the URL
+  for (const keyword of keywords) {
+    if (url.includes(keyword)) {
+      score += 3;
+    }
+  }
+  
+  // Give higher score to likely product pages
+  if (url.includes('/product') || url.includes('/item') || url.includes('/p/')) {
+    score += 2;
+  }
+  
+  // Give higher score to FAQ/Help pages for support questions
+  if (url.includes('/faq') || url.includes('/help') || url.includes('/support')) {
+    if (message.includes('how') || message.includes('what') || 
+        message.includes('guide') || message.includes('help') || 
+        message.includes('support') || message.includes('issue')) {
+      score += 3;
+    }
+  }
+  
+  // Give higher score to pricing/plan pages for pricing questions
+  if (url.includes('/price') || url.includes('/pricing') || url.includes('/plan') || url.includes('/subscription')) {
+    if (message.includes('cost') || message.includes('price') || 
+        message.includes('subscription') || message.includes('plan') || 
+        message.includes('payment') || message.includes('discount')) {
+      score += 3;
+    }
+  }
+  
+  return score;
+}
 
 // @desc    Add URL to knowledge base
 // @route   POST /api/integration/:id/knowledge/url
@@ -449,5 +570,139 @@ exports.getWidgetCode = async (req, res) => {
   } catch (err) {
     console.error('Get widget code error:', err);
     res.status(500).json({ message: 'Error generating widget code' });
+  }
+};
+
+// @desc    Upload document to knowledge base
+// @route   POST /api/integration/:id/knowledge/document
+// @access  Private
+exports.uploadDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const integration = await WebsiteIntegration.findOne({
+      _id: req.params.id,
+      user: req.user.id
+    });
+
+    if (!integration) {
+      return res.status(404).json({ message: 'Integration not found' });
+    }
+
+    // Enable knowledge base if not already enabled
+    if (!integration.knowledgeBase.enabled) {
+      integration.knowledgeBase.enabled = true;
+    }
+
+    // Initialize documents array if it doesn't exist
+    if (!integration.knowledgeBase.documents) {
+      integration.knowledgeBase.documents = [];
+    }
+
+    // Extract text from document based on file type
+    let docContent = '';
+    const filePath = req.file.path;
+    const fileName = req.file.originalname;
+    const fileExt = path.extname(fileName).toLowerCase();
+    
+    if (fileExt === '.pdf') {
+      // Extract text from PDF
+      const pdfParse = require('pdf-parse');
+      const dataBuffer = fs.readFileSync(filePath);
+      
+      try {
+        const pdfData = await pdfParse(dataBuffer);
+        docContent = pdfData.text;
+      } catch (error) {
+        console.error('Error parsing PDF:', error);
+        docContent = 'Error extracting content from PDF.';
+      }
+    } else if (fileExt === '.txt' || fileExt === '.md' || fileExt === '.rtf') {
+      // Read text files directly
+      docContent = fs.readFileSync(filePath, 'utf8');
+    } else if (fileExt === '.doc' || fileExt === '.docx') {
+      // For Word docs, mention that text extraction would be implemented with a library like mammoth.js
+      docContent = 'Document content extraction from Word documents would be implemented in production.';
+      
+      // In a real implementation, you would use a library like mammoth.js:
+      // const mammoth = require('mammoth');
+      // const result = await mammoth.extractRawText({path: filePath});
+      // docContent = result.value;
+    }
+
+    // Clean up the extracted text
+    docContent = docContent.replace(/\r\n/g, '\n').replace(/\n\n+/g, '\n\n').trim();
+
+    // Add document to knowledge base
+    const newDocument = {
+      _id: new mongoose.Types.ObjectId(),
+      name: fileName,
+      content: docContent,
+      url: filePath,
+      uploadedAt: new Date()
+    };
+
+    integration.knowledgeBase.documents.push(newDocument);
+    await integration.save();
+
+    res.json({ 
+      success: true, 
+      document: {
+        id: newDocument._id,
+        name: newDocument.name,
+        uploadedAt: newDocument.uploadedAt
+      }
+    });
+  } catch (err) {
+    console.error('Document upload error:', err);
+    res.status(500).json({ message: 'Error uploading document' });
+  }
+};
+
+// @desc    Remove document from knowledge base
+// @route   DELETE /api/integration/:id/knowledge/document/:documentId
+// @access  Private
+exports.removeDocument = async (req, res) => {
+  try {
+    const integration = await WebsiteIntegration.findOne({
+      _id: req.params.id,
+      user: req.user.id
+    });
+
+    if (!integration) {
+      return res.status(404).json({ message: 'Integration not found' });
+    }
+
+    // Find the document in the knowledge base
+    const documentId = req.params.documentId;
+    const documentIndex = integration.knowledgeBase.documents.findIndex(
+      doc => doc._id.toString() === documentId
+    );
+
+    if (documentIndex === -1) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Get the document to delete the file from disk
+    const document = integration.knowledgeBase.documents[documentIndex];
+
+    // Remove from disk if file exists
+    if (document.url && fs.existsSync(document.url)) {
+      fs.unlinkSync(document.url);
+    }
+
+    // Remove from the array
+    integration.knowledgeBase.documents.splice(documentIndex, 1);
+    await integration.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Document removed successfully'
+    });
+  } catch (err) {
+    console.error('Remove document error:', err);
+    res.status(500).json({ message: 'Error removing document' });
   }
 };
