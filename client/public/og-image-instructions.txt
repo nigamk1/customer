@@ -1,0 +1,6 @@
+<!-- This is a text file placeholder for the og-image.jpg that needs to be created -->
+Please create an image file named og-image.jpg with dimensions of 1200x630 pixels 
+that includes your logo and website name "HelpMate AI". 
+This image will be used when your website is shared on social media platforms.
+
+Place this image in the public folder after creation.
