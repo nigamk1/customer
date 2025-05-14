@@ -108,30 +108,31 @@ const ChatInterface = () => {
         rehypePlugins={[rehypeKatex]}
         components={{
           root: ({ node, ...props }) => <div className="message-content" {...props} />,
-          p: ({ node, ...props }) => <p className="mb-3 leading-relaxed" {...props} />,
-          h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
-          h2: ({ node, ...props }) => <h2 className="text-lg font-bold mb-2" {...props} />,
-          h3: ({ node, ...props }) => <h3 className="text-md font-bold mb-2" {...props} />,
-          ul: ({ node, ...props }) => <ul className="list-disc ml-5 mb-3 space-y-1" {...props} />,
-          ol: ({ node, ...props }) => <ol className="list-decimal ml-5 mb-3 space-y-1" {...props} />,
-          li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+          p: ({ node, ...props }) => <p className="mb-4 leading-relaxed" {...props} />,
+          h1: ({ node, ...props }) => <h1 className="text-xl font-bold mb-3 mt-4 pb-1 border-b border-gray-200" {...props} />,
+          h2: ({ node, ...props }) => <h2 className="text-lg font-bold mb-3 mt-4 pb-1 border-b border-gray-200" {...props} />,
+          h3: ({ node, ...props }) => <h3 className="text-md font-bold mb-2 mt-3" {...props} />,
+          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2" {...props} />,
+          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 space-y-2" {...props} />,
+          li: ({ node, ...props }) => <li className="mb-1 pl-1" {...props} />,
           a: ({ node, ...props }) => <a className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
           code: ({ node, inline, ...props }) => {
             return inline ? (
-              <code className="bg-gray-100 px-1 py-0.5 rounded text-red-600 font-mono text-sm" {...props} />
+              <code className="bg-gray-100 px-1.5 py-0.5 rounded text-red-600 font-mono text-sm" {...props} />
             ) : (
-              <pre className="bg-gray-800 text-gray-100 p-3 rounded-md mb-3 overflow-x-auto font-mono text-sm">
+              <pre className="bg-gray-800 text-gray-100 p-4 rounded-lg mb-4 overflow-x-auto font-mono text-sm">
                 <code {...props} />
               </pre>
             );
           },
-          blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic mb-3 text-gray-700" {...props} />,
-          table: ({ node, ...props }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border border-gray-300" {...props} /></div>,
+          blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary/30 pl-4 italic my-4 py-1 text-gray-700 bg-gray-50 rounded-r-lg" {...props} />,
+          table: ({ node, ...props }) => <div className="overflow-x-auto mb-4 rounded-lg shadow-sm"><table className="min-w-full border border-gray-300 rounded-lg" {...props} /></div>,
           thead: ({ node, ...props }) => <thead className="bg-gray-100" {...props} />,
           tbody: ({ node, ...props }) => <tbody className="divide-y divide-gray-300" {...props} />,
-          tr: ({ node, ...props }) => <tr {...props} />,
-          td: ({ node, ...props }) => <td className="border border-gray-300 px-2 py-1 text-sm" {...props} />,
-          th: ({ node, ...props }) => <th className="border border-gray-300 px-2 py-1 text-sm font-bold" {...props} />,
+          tr: ({ node, ...props }) => <tr className="hover:bg-gray-50" {...props} />,
+          td: ({ node, ...props }) => <td className="border border-gray-300 px-3 py-2 text-sm" {...props} />,
+          th: ({ node, ...props }) => <th className="border border-gray-300 px-3 py-2 text-sm font-bold bg-gray-50" {...props} />,
+          img: ({ node, ...props }) => <img className="max-w-full h-auto rounded-lg my-4 shadow-sm" {...props} alt={props.alt || "Image"} />,
         }}
       >
         {content}
@@ -166,7 +167,7 @@ const ChatInterface = () => {
               <div className={`rounded-2xl p-4 shadow-md ${
                 chat.role === 'user' 
                   ? 'bg-gradient-to-r from-secondary to-indigo-500 text-white' 
-                  : 'bg-gray-100 border border-gray-200 text-gray-800'
+                  : 'bg-white border border-gray-200 text-gray-800'
               }`}>
                 {chat.role === 'user' ? (
                   <p className="mb-2 leading-relaxed whitespace-pre-line">{chat.content}</p>

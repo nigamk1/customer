@@ -37,45 +37,98 @@ body {
 .markdown-content pre {
   white-space: pre-wrap;
   overflow-x: auto;
-  border-radius: 6px;
+  border-radius: 8px;
+  margin: 1rem 0;
+  padding: 1rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .markdown-content code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9em;
 }
 
 .markdown-content table {
   border-collapse: collapse;
   width: 100%;
-  margin-bottom: 1rem;
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-/* Math formula special styling */
+.markdown-content table th {
+  background-color: #f1f5f9;
+  padding: 0.75rem;
+  font-weight: 600;
+}
+
+.markdown-content table td {
+  padding: 0.75rem;
+}
+
+.markdown-content table tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+/* Enhanced styling for equations */
 .katex-display {
   margin: 1.5rem 0;
   overflow-x: auto;
   overflow-y: hidden;
+  padding: 1rem;
+  background-color: rgba(241, 245, 249, 0.6);
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* Fix for long words breaking layout */
 .message-content p {
   overflow-wrap: break-word;
   word-wrap: break-word;
-  -ms-word-break: break-all;
   word-break: break-word;
+  margin-bottom: 1rem;
+  line-height: 1.6;
 }
 
-/* Lists should have proper indentation */
+/* Lists should have proper indentation and spacing */
 .message-content ul,
 .message-content ol {
   padding-left: 1.5rem;
+  margin: 1rem 0;
+}
+
+.message-content ul li,
+.message-content ol li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.message-content ul li::marker {
+  color: #4F46E5;
+}
+
+.message-content ol li::marker {
+  color: #4F46E5;
+  font-weight: bold;
 }
 
 /* Responsive images in markdown content */
 .markdown-content img {
   max-width: 100%;
   height: auto;
-  border-radius: 4px;
+  border-radius: 8px;
+  margin: 1rem 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Better blockquote styling */
+.markdown-content blockquote {
+  border-left: 4px solid #4F46E5;
+  padding: 0.5rem 0 0.5rem 1rem;
+  margin: 1.5rem 0;
+  background-color: #f8fafc;
+  border-radius: 0 8px 8px 0;
 }
 
 /* Add spacing after last element */
@@ -85,7 +138,25 @@ body {
 
 /* Make inline code stand out */
 .markdown-content :not(pre) > code {
-  padding: 0.1em 0.3em;
-  border-radius: 3px;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  color: #e11d48;
   font-size: 0.9em;
+}
+
+/* Highlight formulas for better visibility */
+.markdown-content .math {
+  font-size: 1.05em;
+}
+
+/* Better styling for headings */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
