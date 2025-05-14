@@ -11,6 +11,9 @@
   const primaryColor = config.primaryColor || '#4F46E5';
   const chatTitle = config.chatTitle || 'Customer Support';
   const welcomeMessage = config.welcomeMessage || 'Hi there! How can I help you today?';
+  const isDemoMode = config.demoMode || false;
+  const demoType = config.demoType || '';
+  const demoConfig = config.demoConfig || null;
   
   // Dynamically determine base URL
   // This ensures we use the same domain in production or development
@@ -30,7 +33,6 @@
     
     // Fallback to localhost if we can't determine
     return 'https://customer-ai-support.onrender.com';
-    
   };
   
   // Base URL for API requests
@@ -110,6 +112,11 @@
   // Collect page content for context
   function collectPageContent() {
     try {
+      // If in demo mode, provide pre-set context instead of scraping
+      if (isDemoMode && demoConfig) {
+        return generateDemoContext();
+      }
+      
       // Create structured page data object
       let pageData = {
         type: '',
@@ -235,6 +242,59 @@
       return 'Unable to collect page content due to an error.';
     }
   }
+
+  // Generate demo context for the demo mode
+  function generateDemoContext() {
+    if (!demoConfig) return '';
+
+    if (demoType === 'ecommerce') {
+      return `
+Page Type: Product
+URL: ${window.location.href}
+Title: ${demoConfig.productName} | ${demoConfig.companyName}
+
+Product: ${demoConfig.productName}
+Price: ${demoConfig.productPrice}
+Description: ${demoConfig.productDescription}
+
+Features:
+${demoConfig.productFeatures.map(feature => `- ${feature}`).join('\n')}
+
+Shipping Information:
+${demoConfig.shipping}
+
+Return Policy:
+${demoConfig.returns}
+
+Company: ${demoConfig.companyName}
+      `.trim();
+    } 
+    else if (demoType === 'saas') {
+      return `
+Page Type: Pricing
+URL: ${window.location.href}
+Title: Pricing Plans | ${demoConfig.productName}
+
+Product: ${demoConfig.productName}
+Plans:
+${demoConfig.plans.map(plan => 
+  `Plan: ${plan.name}
+  Price: ${plan.price}
+  Features: ${plan.features.join(', ')}`
+).join('\n')}
+
+FAQ:
+${demoConfig.faq.map(item => 
+  `Q: ${item.question}
+  A: ${item.answer}`
+).join('\n')}
+
+Company: ${demoConfig.companyName}
+      `.trim();
+    }
+    
+    return '';
+  }
   
   // Send a message to the AI
   function sendMessage(message) {
@@ -276,7 +336,9 @@
           url: window.location.href,
           title: document.title,
           referrer: document.referrer,
-          pageContent: pageContent
+          pageContent: pageContent,
+          isDemoMode: isDemoMode, 
+          demoType: demoType
         }
       })
     })
@@ -311,12 +373,32 @@
       // Remove the loading message
       chatHistory = chatHistory.filter(msg => msg.id !== loadingId);
       
-      // Add error message
-      chatHistory.push({
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again later.',
-        timestamp: new Date()
-      });
+      // If in demo mode and error occurs, simulate a response
+      if (isDemoMode) {
+        let demoResponse = "I can help answer questions about ";
+        
+        if (demoType === 'ecommerce') {
+          demoResponse += `the ${demoConfig.productName}. It costs ${demoConfig.productPrice} and features ${demoConfig.productFeatures.join(', ')}. For shipping, ${demoConfig.shipping.toLowerCase()}`;
+        } else if (demoType === 'saas') {
+          demoResponse += `our ${demoConfig.productName} plans and pricing. We offer ${demoConfig.plans.map(p => p.name).join(', ')} plans, starting at ${demoConfig.plans[0].price}.`;
+        } else {
+          demoResponse += "this website and the products/services offered here.";
+        }
+        
+        // Add demo response
+        chatHistory.push({
+          role: 'assistant',
+          content: demoResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // Add error message
+        chatHistory.push({
+          role: 'assistant',
+          content: 'Sorry, I encountered an error. Please try again later.',
+          timestamp: new Date()
+        });
+      }
       
       renderChatMessages();
     });

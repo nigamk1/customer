@@ -15,11 +15,6 @@ const ChatInterface = () => {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef(null);
 
-  // Scroll to bottom of chat when new messages arrive
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
-
   // Load previous chat history if needed
   useEffect(() => {
     const fetchChatHistory = async () => {
@@ -46,6 +41,11 @@ const ChatInterface = () => {
     fetchChatHistory();
   }, []);
 
+  // Manual scroll function that will be called only when sending messages
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (message.trim() === '') return;
@@ -60,6 +60,9 @@ const ChatInterface = () => {
     setChatHistory(prev => [...prev, userMessage]);
     setMessage('');
     setLoading(true);
+    
+    // Manual scroll after sending user message
+    setTimeout(scrollToBottom, 100);
 
     try {
       // Send message to backend
@@ -71,6 +74,9 @@ const ChatInterface = () => {
         content: response.data.response,
         timestamp: new Date().toISOString()
       }]);
+      
+      // Manual scroll after receiving AI response
+      setTimeout(scrollToBottom, 100);
     } catch (err) {
       console.error('Error sending message:', err);
       toast.error('Failed to get response. Please try again later.');
@@ -81,6 +87,9 @@ const ChatInterface = () => {
         content: 'Sorry, I encountered an error. Please try again later.',
         timestamp: new Date().toISOString()
       }]);
+      
+      // Manual scroll after error message
+      setTimeout(scrollToBottom, 100);
     } finally {
       setLoading(false);
     }

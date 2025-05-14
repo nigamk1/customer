@@ -1,16 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'react-toastify';
-import { FaSave, FaSpinner, FaArrowLeft, FaLink, FaGlobe, FaBrush, FaComment } from 'react-icons/fa';
+import { FaSave, FaSpinner, FaArrowLeft, FaLink, FaGlobe, FaBrush, FaComment, 
+         FaCheck, FaTimes, FaTrash, FaFileUpload, FaFile } from 'react-icons/fa';
 
 const IntegrationForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEditMode = !!id;
+  const fileInputRef = useRef(null);
 
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [documents, setDocuments] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     domain: '',
@@ -36,6 +40,12 @@ const IntegrationForm = () => {
         try {
           const res = await axios.get(`/api/integration/${id}`);
           setFormData(res.data.data);
+          
+          if (res.data.data.knowledgeBase && 
+              res.data.data.knowledgeBase.documents && 
+              res.data.data.knowledgeBase.documents.length > 0) {
+            setDocuments(res.data.data.knowledgeBase.documents);
+          }
         } catch (err) {
           console.error('Error fetching integration:', err);
           toast.error('Failed to load integration data');
@@ -96,13 +106,11 @@ const IntegrationForm = () => {
       return;
     }
     
-    // Simple URL validation
     if (!newUrl.match(/^(http|https):\/\/[a-zA-Z0-9-_.]+\.[a-zA-Z0-9-_.]+/)) {
       toast.error('Please enter a valid URL starting with http:// or https://');
       return;
     }
     
-    // Add URL if not already in list
     if (!formData.knowledgeBase.urls.includes(newUrl)) {
       setFormData({
         ...formData,
@@ -146,6 +154,67 @@ const IntegrationForm = () => {
       toast.error('Failed to save integration');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const maxSize = 10 * 1024 * 1024;
+    
+    if (file.size > maxSize) {
+      toast.error('File is too large. Maximum size is 10MB.');
+      return;
+    }
+    
+    const allowedTypes = ['.pdf', '.txt', '.doc', '.docx', '.rtf', '.md'];
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      toast.error('File type not supported. Please upload PDF, TXT, DOC, DOCX, RTF or MD files.');
+      return;
+    }
+    
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('document', file);
+      
+      const res = await axios.post(`/api/integration/${id}/knowledge/document`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      setDocuments(prevDocs => [...prevDocs, res.data.document]);
+      
+      toast.success('Document uploaded successfully');
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      toast.error('Failed to upload document');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteDocument = async (docId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    
+    try {
+      await axios.delete(`/api/integration/${id}/knowledge/document/${docId}`);
+      
+      setDocuments(prevDocs => prevDocs.filter(doc => doc._id !== docId));
+      
+      toast.success('Document deleted successfully');
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      toast.error('Failed to delete document');
     }
   };
 
@@ -354,55 +423,120 @@ const IntegrationForm = () => {
             </div>
 
             {formData.knowledgeBase.enabled && (
-              <div className="mb-4 pl-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Website URLs to use as context
-                </label>
-                
-                <div className="flex mb-2">
-                  <input
-                    type="text"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    className="flex-1 p-2 border border-gray-300 rounded-l focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="https://example.com/product-page"
-                  />
-                  <button
-                    onClick={handleAddUrl}
-                    className="bg-primary text-white px-4 py-2 rounded-r hover:bg-opacity-90"
-                    type="button"
-                  >
-                    Add URL
-                  </button>
+              <>
+                <div className="mb-4 pl-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Website URLs to use as context
+                  </label>
+                  
+                  <div className="flex mb-2">
+                    <input
+                      type="text"
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      className="flex-1 p-2 border border-gray-300 rounded-l focus:outline-none focus:ring-2 focus:ring-primary"
+                      placeholder="https://example.com/product-page"
+                    />
+                    <button
+                      onClick={handleAddUrl}
+                      className="bg-primary text-white px-4 py-2 rounded-r hover:bg-opacity-90"
+                      type="button"
+                    >
+                      Add URL
+                    </button>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-2 mt-2">
+                    {formData.knowledgeBase.urls.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">
+                        No URLs added yet. Add some URLs to improve AI responses.
+                      </p>
+                    ) : (
+                      <ul className="max-h-40 overflow-y-auto">
+                        {formData.knowledgeBase.urls.map((url, index) => (
+                          <li key={index} className="flex justify-between items-center py-1 text-sm">
+                            <span className="truncate mr-2 text-gray-700">{url}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUrl(url)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    Add URLs to important pages like product docs, FAQs, and pricing pages.
+                  </p>
                 </div>
                 
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-2 mt-2">
-                  {formData.knowledgeBase.urls.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No URLs added yet. Add some URLs to improve AI responses.
-                    </p>
-                  ) : (
-                    <ul className="max-h-40 overflow-y-auto">
-                      {formData.knowledgeBase.urls.map((url, index) => (
-                        <li key={index} className="flex justify-between items-center py-1 text-sm">
-                          <span className="truncate mr-2 text-gray-700">{url}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveUrl(url)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <div className="mb-4 pl-6 mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload documents (PDF, TXT, DOC, etc.)
+                  </label>
+                  
+                  <div className="flex mb-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      accept=".pdf,.txt,.doc,.docx,.rtf,.md"
+                    />
+                    <div className="flex flex-1">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center"
+                        type="button"
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <FaSpinner className="animate-spin mr-2" />
+                        ) : (
+                          <FaFileUpload className="mr-2" />
+                        )}
+                        {uploading ? 'Uploading...' : 'Select File'}
+                      </button>
+                      <p className="ml-3 text-sm text-gray-500 self-center">
+                        Max file size: 10MB
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 p-2 mt-2">
+                    {documents.length === 0 ? (
+                      <p className="text-gray-500 text-sm italic">No documents uploaded yet</p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {documents.map((doc) => (
+                          <li key={doc._id} className="flex justify-between items-center text-sm p-2 hover:bg-gray-100 rounded">
+                            <div className="flex items-center">
+                              <FaFile className="text-blue-400 mr-2" />
+                              <span className="truncate max-w-md">{doc.name}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="text-xs text-gray-500 mr-3">
+                                {new Date(doc.uploadedAt).toLocaleDateString()}
+                              </span>
+                              <button
+                                onClick={() => handleDeleteDocument(doc._id)}
+                                className="text-red-500 hover:text-red-700"
+                                type="button"
+                              >
+                                <FaTrash />
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
-                
-                <p className="text-xs text-gray-500 mt-2">
-                  Add URLs to important pages like product docs, FAQs, and pricing pages.
-                </p>
-              </div>
+              </>
             )}
           </div>
 
