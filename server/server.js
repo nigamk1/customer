@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 // Initialize Express
 const app = express();
@@ -16,17 +17,46 @@ const io = new Server(httpServer, {
   }
 });
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI || '', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected successfully'))
-.catch(err => console.error('MongoDB connection error:', err));
+// Connect to MongoDB with retry mechanism
+const connectWithRetry = () => {
+  const mongoURI = process.env.MONGO_URI || '';
+  console.log('Attempting to connect to MongoDB...');
+  
+  mongoose.connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+    socketTimeoutMS: 45000 // Close sockets after 45s of inactivity
+  })
+  .then(() => {
+    console.log('MongoDB connected successfully');
+  })
+  .catch(err => {
+    console.error('MongoDB connection error:', err);
+    console.log('Retrying MongoDB connection in 5 seconds...');
+    setTimeout(connectWithRetry, 5000);
+  });
+};
+
+connectWithRetry();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Ensure required directories exist
+const dataDirPath = path.join(__dirname, 'data/vector_db');
+const uploadsDirPath = path.join(__dirname, 'uploads/documents');
+
+if (!fs.existsSync(dataDirPath)) {
+  fs.mkdirSync(dataDirPath, { recursive: true });
+  console.log('Created vector database directory');
+}
+
+if (!fs.existsSync(uploadsDirPath)) {
+  fs.mkdirSync(uploadsDirPath, { recursive: true });
+  console.log('Created document uploads directory');
+}
 
 // Logging middleware in development
 if (process.env.NODE_ENV === 'development') {
@@ -53,6 +83,11 @@ app.use('/api/chat', require('./routes/chat'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/integration', require('./routes/integration'));
 app.use('/api/subscription', require('./routes/subscription'));
+app.use('/api/knowledge', require('./routes/knowledge'));
+app.use('/api/tools', require('./routes/tools'));
+app.use('/api/rules', require('./routes/rules'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/health', require('./routes/health'));
 
 // Socket.IO for real-time chat
 io.on('connection', (socket) => {

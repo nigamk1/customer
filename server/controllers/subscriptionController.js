@@ -228,10 +228,10 @@ exports.createOrder = async (req, res) => {
         plan: PLANS[plan],
         paymentCycle
       }
-    });
-  } catch (err) {
+    });  } catch (err) {
     console.error('Create order error:', err);
-    res.status(500).json({ message: 'Error creating payment order' });
+    const errorMessage = err.message || 'Error creating payment order';
+    res.status(500).json({ message: errorMessage, error: err.toString() });
   }
 };
 
@@ -290,10 +290,10 @@ exports.verifyPayment = async (req, res) => {
       },
       message: 'Payment verified and subscription activated'
     });
-    
-  } catch (err) {
+      } catch (err) {
     console.error('Verify payment error:', err);
-    res.status(500).json({ message: 'Error verifying payment' });
+    const errorMessage = err.message || 'Error verifying payment';
+    res.status(500).json({ message: errorMessage, error: err.toString() });
   }
 };
 

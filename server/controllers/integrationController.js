@@ -9,7 +9,8 @@ const mongoose = require('mongoose');
 const multer = require('multer');
 
 // Initialize OpenAI
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const apiKey = process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.replace(/^"(.*)"$/, '$1') : '';
+const openai = new OpenAI({ apiKey });
 
 // Configure multer for document storage
 const storage = multer.diskStorage({
@@ -66,8 +67,27 @@ async function saveConversationHistory(sessionId, conversation) {
 exports.createIntegration = async (req, res) => {
   try {
     const userId = req.user.id;
+      const { name, domain, widgetSettings, knowledgeBase, allowFileAttachments, active } = req.body;
     
-    const { name, domain, widgetSettings, knowledgeBase, allowFileAttachments, active } = req.body;
+    // Format knowledgeBase.urls to match the schema
+    let formattedKnowledgeBase = knowledgeBase;
+    if (knowledgeBase && knowledgeBase.urls) {
+      // Convert string URLs to the proper object format
+      formattedKnowledgeBase = {
+        ...knowledgeBase,
+        urls: knowledgeBase.urls.map(urlItem => {
+          // If it's already an object with url property, leave it as is
+          if (typeof urlItem === 'object' && urlItem.url) {
+            return urlItem;
+          }
+          // Convert string to object format
+          return {
+            url: urlItem,
+            status: 'pending'
+          };
+        })
+      };
+    }
     
     // Create integration
     const integration = new WebsiteIntegration({
@@ -75,7 +95,7 @@ exports.createIntegration = async (req, res) => {
       name,
       domain,
       widgetSettings,
-      knowledgeBase,
+      knowledgeBase: formattedKnowledgeBase,
       allowFileAttachments,
       active
     });
@@ -141,13 +161,32 @@ exports.updateIntegration = async (req, res) => {
 
     if (!integration) {
       return res.status(404).json({ message: 'Integration not found' });
-    }
-
-    // Update fields
+    }    // Update fields
     if (name) integration.name = name;
     if (domain) integration.domain = domain;
     if (widgetSettings) integration.widgetSettings = { ...integration.widgetSettings, ...widgetSettings };
-    if (knowledgeBase) integration.knowledgeBase = { ...integration.knowledgeBase, ...knowledgeBase };
+    
+    // Format knowledgeBase.urls to match the schema if updating knowledgeBase
+    if (knowledgeBase) {
+      let formattedKnowledgeBase = { ...knowledgeBase };
+      
+      if (knowledgeBase.urls) {
+        // Convert string URLs to the proper object format
+        formattedKnowledgeBase.urls = knowledgeBase.urls.map(urlItem => {
+          // If it's already an object with url property, leave it as is
+          if (typeof urlItem === 'object' && urlItem.url) {
+            return urlItem;
+          }
+          // Convert string to object format
+          return {
+            url: urlItem,
+            status: 'pending'
+          };
+        });
+      }
+      
+      integration.knowledgeBase = { ...integration.knowledgeBase, ...formattedKnowledgeBase };
+    }
     if (active !== undefined) integration.active = active;
 
     await integration.save();
@@ -167,13 +206,11 @@ exports.deleteIntegration = async (req, res) => {
     const integration = await WebsiteIntegration.findOne({
       _id: req.params.id,
       user: req.user.id
-    });
-
-    if (!integration) {
+    });    if (!integration) {
       return res.status(404).json({ message: 'Integration not found' });
     }
 
-    await integration.remove();
+    await WebsiteIntegration.deleteOne({ _id: integration._id });
 
     res.json({ success: true, data: {} });
   } catch (err) {
@@ -596,11 +633,16 @@ exports.addKnowledgeUrl = async (req, res) => {
     // Enable knowledge base if not already enabled
     if (!integration.knowledgeBase.enabled) {
       integration.knowledgeBase.enabled = true;
-    }
-
-    // Add URL if not already in list
-    if (!integration.knowledgeBase.urls.includes(url)) {
-      integration.knowledgeBase.urls.push(url);
+    }    // Add URL if not already in list
+    const urlExists = integration.knowledgeBase.urls.some(
+      urlItem => (typeof urlItem === 'object' && urlItem.url === url) || urlItem === url
+    );
+    
+    if (!urlExists) {
+      integration.knowledgeBase.urls.push({
+        url: url,
+        status: 'pending'
+      });
     }
 
     await integration.save();
@@ -633,10 +675,10 @@ exports.removeKnowledgeUrl = async (req, res) => {
 
     if (!integration) {
       return res.status(404).json({ message: 'Integration not found' });
-    }
-
-    // Remove URL from list
-    integration.knowledgeBase.urls = integration.knowledgeBase.urls.filter(u => u !== url);
+    }    // Remove URL from list - handle both string and object formats
+    integration.knowledgeBase.urls = integration.knowledgeBase.urls.filter(urlItem => 
+      (typeof urlItem === 'object' && urlItem.url !== url) || (typeof urlItem === 'string' && urlItem !== url)
+    );
 
     await integration.save();
 

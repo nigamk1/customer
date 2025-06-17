@@ -5,7 +5,8 @@ const WebsiteIntegration = require('../models/WebsiteIntegration');
 const { OpenAI } = require('openai');
 
 // Initialize OpenAI
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const apiKey = process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.replace(/^"(.*)"$/, '$1') : '';
+const openai = new OpenAI({ apiKey });
 
 // @desc    Send message to AI
 // @route   POST /api/chat/send
@@ -46,11 +47,65 @@ exports.sendMessage = async (req, res) => {
       if (!integrationDetails) {
         return res.status(404).json({ message: 'Integration not found' });
       }
-      
-      // Check if integration has knowledge base enabled
+        // Check if integration has knowledge base enabled
       if (integrationDetails.knowledgeBase && integrationDetails.knowledgeBase.enabled) {
-        // Build context from knowledge base
-        customSystemPrompt = await buildContextFromKnowledgeBase(integrationDetails);
+        if (integrationDetails.knowledgeBase.vectorSearch && integrationDetails.knowledgeBase.vectorSearch.enabled) {
+          // Use RAG approach with vector similarity search
+          const { buildContextFromVectorSearch } = require('../services/chatService');
+          const vectorSearchContext = await buildContextFromVectorSearch(integrationDetails, message);
+          
+          if (vectorSearchContext) {
+            customSystemPrompt = `You are HelpMate AI, a helpful customer service assistant for ${integrationDetails.name}.
+Use the following information to provide accurate, helpful, and friendly responses to customer queries.
+When you don't know the answer, say so politely and suggest contacting a human representative.
+
+${vectorSearchContext}
+
+Respond in a conversational, helpful tone. Keep responses concise yet thorough.`;
+          } else {
+            // Fall back to traditional knowledge base if no vector search results
+            customSystemPrompt = await buildContextFromKnowledgeBase(integrationDetails);
+          }
+        } else {
+          // Build context from traditional knowledge base
+          customSystemPrompt = await buildContextFromKnowledgeBase(integrationDetails);
+        }
+      }
+      
+      // Check for trigger keywords that require special handling
+      if (integrationDetails.businessRules && integrationDetails.businessRules.triggerKeywords) {
+        const { checkForTriggerKeywords } = require('../services/chatService');
+        const trigger = checkForTriggerKeywords(
+          message, 
+          integrationDetails.businessRules.triggerKeywords
+        );
+        
+        if (trigger && trigger.action === 'escalate') {
+          // Auto-escalate based on trigger keyword
+          return res.json({ 
+            response: "I'll need to transfer you to a human agent to assist with this query.",
+            escalated: true,
+            triggerKeyword: trigger.keyword
+          });
+        }
+      }
+      
+      // Check if within business hours
+      if (integrationDetails.businessRules && 
+          integrationDetails.businessRules.businessHours && 
+          integrationDetails.businessRules.businessHours.enabled) {
+        
+        const { isWithinBusinessHours } = require('../services/chatService');
+        const withinHours = isWithinBusinessHours(integrationDetails.businessRules.businessHours);
+        
+        if (!withinHours) {
+          // Return out-of-hours message
+          return res.json({ 
+            response: integrationDetails.businessRules.businessHours.outOfHoursMessage || 
+              "We're currently outside of our business hours. Please leave a message and we'll get back to you soon.",
+            outOfHours: true
+          });
+        }
       }
     }
     
@@ -96,24 +151,89 @@ exports.sendMessage = async (req, res) => {
       role: msg.role,
       content: msg.content
     }));
-    
-    // Call OpenAI API
-    const response = await openai.chat.completions.create({
+      // Prepare API call options
+    const apiOptions = {
       model: 'gpt-4',  // or 'gpt-3.5-turbo' for a cheaper option
       messages: apiMessages,
       max_tokens: 800,
       temperature: 0.7,
-    });
+    };
     
-    // Get AI response
-    const aiResponse = response.choices[0].message.content;
+    // Add tool definitions if integration has tools configured
+    if (integrationId && integrationDetails && integrationDetails.toolsConfig) {
+      const { getAvailableToolSchemas } = require('../services/toolService');
+      const tools = getAvailableToolSchemas(integrationDetails);
+      
+      if (tools && tools.length > 0) {
+        apiOptions.tools = tools;
+        apiOptions.tool_choice = 'auto';
+      }
+    }
     
-    // Add AI response to chat history
-    chat.messages.push({
-      role: 'assistant',
-      content: aiResponse,
-      timestamp: new Date()
-    });
+    // Call OpenAI API
+    const response = await openai.chat.completions.create(apiOptions);
+    
+    // Process the response
+    const aiMessage = response.choices[0].message;
+    
+    // Check if the AI used any tools
+    if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
+      // Process tool calls
+      const { processToolCalls } = require('../services/chatService');
+      const toolResults = await processToolCalls(integrationDetails, aiMessage.tool_calls);
+      
+      // Add the assistant's message with tool calls
+      chat.messages.push({
+        role: 'assistant',
+        content: aiMessage.content,
+        tool_calls: aiMessage.tool_calls,
+        timestamp: new Date()
+      });
+      
+      // Add tool results to messages
+      toolResults.forEach(result => {
+        chat.messages.push({
+          ...result,
+          timestamp: new Date()
+        });
+      });
+      
+      // Make a follow-up call to get the final response
+      const followUpMessages = [...apiMessages, aiMessage, ...toolResults];
+      
+      const followUpResponse = await openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: followUpMessages,
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+      
+      // Get final AI response
+      const aiResponse = followUpResponse.choices[0].message.content;
+      
+      // Add final AI response to chat history
+      chat.messages.push({
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: new Date()
+      });
+      
+      // For the response object
+      var finalResponse = aiResponse;
+    } else {
+      // Standard text response
+      const aiResponse = aiMessage.content;
+      
+      // Add AI response to chat history
+      chat.messages.push({
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: new Date()
+      });
+      
+      // For the response object
+      var finalResponse = aiResponse;
+    }
     
     // If it's a real chat (not guest), save to DB
     if (userId) {
@@ -139,11 +259,12 @@ exports.sendMessage = async (req, res) => {
       chat.updatedAt = new Date();
       await chat.save();
     }
-    
-    // Send response back to client
+      // Send response back to client
     res.json({ 
-      response: aiResponse,
-      chatId: userId ? chat._id : null
+      response: finalResponse,
+      chatId: userId ? chat._id : null,
+      usedKnowledgeBase: !!customSystemPrompt,
+      usedTools: !!(aiMessage.tool_calls && aiMessage.tool_calls.length > 0)
     });
     
   } catch (err) {

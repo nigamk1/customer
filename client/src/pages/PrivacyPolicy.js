@@ -176,9 +176,9 @@ const PrivacyPolicy = () => {
               please contact us at:
             </p>
             <p className="mt-4">
-              <strong>Email:</strong> privacy@helpmateai.com<br />
+              {/* <strong>Email:</strong> privacy@helpmateai.com<br />
               <strong>Address:</strong> HelpMate AI, #123 AI Plaza, Tech Valley, Bengaluru 560001, India<br />
-              <strong>Phone:</strong> +91-8000-HelpMate (8000-435-7628)
+              <strong>Phone:</strong> +91-8000-HelpMate (8000-435-7628) */}
             </p>
           </section>
         </div>

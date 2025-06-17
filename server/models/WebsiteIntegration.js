@@ -47,14 +47,112 @@ const WebsiteIntegrationSchema = new mongoose.Schema({
       type: Boolean,
       default: false
     },
+    vectorSearch: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      lastIndexed: {
+        type: Date
+      }
+    },
     urls: [{
-      type: String,
-      trim: true
+      url: {
+        type: String,
+        trim: true
+      },
+      title: String,
+      lastIndexed: Date,
+      status: {
+        type: String,
+        enum: ['pending', 'indexed', 'failed'],
+        default: 'pending'
+      }
     }],
     documents: [{
       name: String,
       content: String,
-      url: String
+      url: String,
+      documentType: {
+        type: String,
+        enum: ['pdf', 'text', 'markdown', 'webpage', 'notion', 'zendesk', 'help_scout', 'intercom']
+      },
+      lastIndexed: Date,
+      status: {
+        type: String,
+        enum: ['pending', 'indexed', 'failed'],
+        default: 'pending'
+      }
+    }],
+    externalServices: [{
+      type: {
+        type: String,
+        enum: ['notion', 'zendesk', 'help_scout', 'intercom'],
+        required: true
+      },
+      connectionDetails: {
+        type: mongoose.Schema.Types.Mixed,
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['connected', 'disconnected', 'failed'],
+        default: 'disconnected'
+      },
+      lastSynced: Date
+    }]
+  },
+  // New feature: Tool integration (API endpoints)
+  toolsConfig: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  businessRules: {
+    escalationThreshold: {
+      type: Number,
+      default: 0.7, // Confidence threshold for escalation
+      min: 0,
+      max: 1
+    },
+    escalationContacts: [{
+      name: String,
+      email: String,
+      notificationChannel: {
+        type: String,
+        enum: ['email', 'slack', 'webhook'],
+        default: 'email'
+      },
+      webhookUrl: String
+    }],
+    businessHours: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      timezone: {
+        type: String,
+        default: 'UTC'
+      },
+      schedule: [{
+        day: {
+          type: String,
+          enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        },
+        open: String,
+        close: String
+      }],
+      outOfHoursMessage: {
+        type: String,
+        default: "We're currently closed. We'll get back to you during our business hours."
+      }
+    },
+    triggerKeywords: [{
+      keyword: String,
+      action: {
+        type: String,
+        enum: ['escalate', 'tag', 'notify'],
+        default: 'escalate'
+      }
     }]
   },
   allowFileAttachments: {

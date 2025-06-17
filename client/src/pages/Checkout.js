@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FaCheck, FaTimes, FaSpinner, FaCreditCard } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaSpinner, FaCreditCard, FaExclamationTriangle } from 'react-icons/fa';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -15,8 +15,27 @@ const Checkout = () => {
 
   const [plan, setPlan] = useState(planFromQuery);
   const [paymentCycle, setPaymentCycle] = useState(cycleFromQuery);
-  const [loading, setLoading] = useState(false);
-  const [processingPayment, setProcessingPayment] = useState(false);
+  const [loading, setLoading] = useState(false);  const [processingPayment, setProcessingPayment] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+
+  // Check if Razorpay is loaded
+  useEffect(() => {
+    const checkRazorpayLoaded = () => {
+      if (window.Razorpay) {
+        setRazorpayLoaded(true);
+      } else {
+        toast.warning("Payment system is loading. If you encounter issues during checkout, please refresh the page.");
+      }
+    };
+    
+    checkRazorpayLoaded();
+    
+    // If not loaded, check again after a short delay
+    if (!window.Razorpay) {
+      const timer = setTimeout(checkRazorpayLoaded, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const plans = {
     basic: {
@@ -51,8 +70,12 @@ const Checkout = () => {
   const price = paymentCycle === 'monthly' 
     ? selectedPlan.monthlyPrice 
     : selectedPlan.yearlyPrice;
-
   const handlePayment = async () => {
+    if (!window.Razorpay) {
+      toast.error("Payment system is not loaded. Please refresh the page and try again.");
+      return;
+    }
+    
     setProcessingPayment(true);
 
     try {
@@ -63,10 +86,9 @@ const Checkout = () => {
       });
       
       const { orderId, amount, currency } = orderRes.data.data;
-      
-      // 2. Initialize Razorpay
+        // 2. Initialize Razorpay
       const options = {
-        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_YourTestKeyId',
+        key: process.env.REACT_APP_RAZORPAY_KEY_ID || 'rzp_test_7sEzBXgklKXYZW',
         amount: amount,
         currency,
         name: "HelpMate AI",
@@ -91,9 +113,9 @@ const Checkout = () => {
                 subscription: verifyRes.data.data.subscription
               }
             });
-          } catch (err) {
-            console.error('Payment verification failed:', err);
-            toast.error('Payment verification failed. Please contact support.');
+          } catch (err) {            console.error('Payment verification failed:', err);
+            const errorMessage = err.response?.data?.message || 'Payment verification failed';
+            toast.error(`${errorMessage}. Please try again or contact support.`);
           }
         },
         prefill: {
@@ -111,10 +133,10 @@ const Checkout = () => {
       };
 
       const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    } catch (err) {
+      razorpay.open();    } catch (err) {
       console.error('Payment initialization failed:', err);
-      toast.error('Unable to initialize payment. Please try again.');
+      const errorMessage = err.response?.data?.message || 'Unable to initialize payment';
+      toast.error(`${errorMessage}. Please try again.`);
       setProcessingPayment(false);
     }
   };
@@ -197,16 +219,20 @@ const Checkout = () => {
             </ul>
           </div>
           
-          <div className="mt-8 space-y-4">
-            <button
+          <div className="mt-8 space-y-4">            <button
               onClick={handlePayment}
-              disabled={processingPayment}
+              disabled={processingPayment || !razorpayLoaded}
               className="w-full bg-primary hover:bg-primary/90 text-white py-3 px-6 rounded-lg flex items-center justify-center disabled:opacity-70"
             >
               {processingPayment ? (
                 <>
                   <FaSpinner className="animate-spin mr-2" />
                   Processing...
+                </>
+              ) : !razorpayLoaded ? (
+                <>
+                  <FaExclamationTriangle className="mr-2" />
+                  Payment System Loading...
                 </>
               ) : (
                 <>
